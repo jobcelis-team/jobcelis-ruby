@@ -96,8 +96,10 @@ module Jobcelis
     # ------------------------------------------------------------------
 
     # Create a webhook.
-    def create_webhook(url:, **kwargs)
-      post("/api/v1/webhooks", { url: url, **kwargs })
+    def create_webhook(url:, rate_limit: nil, **kwargs)
+      body = { url: url, **kwargs }
+      body[:rate_limit] = rate_limit if rate_limit
+      post("/api/v1/webhooks", body)
     end
 
     # Get webhook details.
@@ -111,8 +113,10 @@ module Jobcelis
     end
 
     # Update a webhook.
-    def update_webhook(webhook_id, **kwargs)
-      patch("/api/v1/webhooks/#{webhook_id}", kwargs)
+    def update_webhook(webhook_id, rate_limit: nil, **kwargs)
+      body = { **kwargs }
+      body[:rate_limit] = rate_limit if rate_limit
+      patch("/api/v1/webhooks/#{webhook_id}", body)
     end
 
     # Deactivate a webhook.
@@ -128,6 +132,11 @@ module Jobcelis
     # List available webhook templates.
     def webhook_templates
       get("/api/v1/webhooks/templates")
+    end
+
+    # Send a test delivery to a webhook.
+    def test_webhook(webhook_id)
+      post("/api/v1/webhooks/#{webhook_id}/test", {})
     end
 
     # ------------------------------------------------------------------
@@ -530,6 +539,73 @@ module Jobcelis
     end
 
     # ------------------------------------------------------------------
+    # Embed Tokens
+    # ------------------------------------------------------------------
+
+    # List embed tokens.
+    def list_embed_tokens
+      get("/api/v1/embed/tokens")
+    end
+
+    # Create an embed token.
+    def create_embed_token(config)
+      post("/api/v1/embed/tokens", config)
+    end
+
+    # Revoke an embed token.
+    def revoke_embed_token(id)
+      do_delete("/api/v1/embed/tokens/#{id}")
+    end
+
+    # ------------------------------------------------------------------
+    # Notification Channels
+    # ------------------------------------------------------------------
+
+    # Get the notification channel configuration.
+    def get_notification_channel
+      get("/api/v1/notification-channels")
+    end
+
+    # Create or update the notification channel configuration.
+    def upsert_notification_channel(config)
+      put("/api/v1/notification-channels", config)
+    end
+
+    # Delete the notification channel configuration.
+    def delete_notification_channel
+      do_delete("/api/v1/notification-channels")
+    end
+
+    # Test the notification channel configuration.
+    def test_notification_channel
+      post("/api/v1/notification-channels/test", {})
+    end
+
+    # ------------------------------------------------------------------
+    # Retention & Purge
+    # ------------------------------------------------------------------
+
+    # Get current retention policy.
+    def get_retention_policy
+      get("/api/v1/retention")
+    end
+
+    # Update retention policy.
+    def update_retention_policy(policy)
+      patch("/api/v1/retention", policy)
+    end
+
+    # Preview a purge operation.
+    def preview_purge(params)
+      post("/api/v1/purge/preview", params)
+    end
+
+    # Execute a purge operation.
+    def purge_data(params)
+      post("/api/v1/purge", params)
+    end
+
+    # ------------------------------------------------------------------
     # Health
     # ------------------------------------------------------------------
 
@@ -559,6 +635,10 @@ module Jobcelis
 
     def patch(path, body)
       request("PATCH", path, body: body)
+    end
+
+    def put(path, body)
+      request("PUT", path, body: body)
     end
 
     def do_delete(path)
@@ -638,6 +718,7 @@ module Jobcelis
       when "GET"    then Net::HTTP::Get.new(request_path)
       when "POST"   then Net::HTTP::Post.new(request_path)
       when "PATCH"  then Net::HTTP::Patch.new(request_path)
+      when "PUT"    then Net::HTTP::Put.new(request_path)
       when "DELETE" then Net::HTTP::Delete.new(request_path)
       else raise ArgumentError, "Unsupported HTTP method: #{method}"
       end
