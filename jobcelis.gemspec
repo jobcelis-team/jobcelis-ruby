@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = "jobcelis"
-  s.version     = "1.2.1"
+  s.version     = "1.3.0"
   s.summary     = "Official Ruby SDK for the Jobcelis Event Infrastructure Platform"
   s.description = "Ruby client for the Jobcelis API — events, webhooks, jobs, pipelines, and more. Connects to https://jobcelis.com by default."
   s.authors     = ["Jobcelis"]
@@ -10,6 +10,8 @@ Gem::Specification.new do |s|
   s.files       = Dir["lib/**/*.rb"] + ["README.md", "LICENSE"]
   s.required_ruby_version = ">= 3.0"
   s.add_dependency "net-http"
+  # Not a default gem since Ruby 3.4: Bundler apps fail to load the SDK without it
+  s.add_dependency "base64", "~> 0.2"
   s.metadata = {
     "homepage_uri" => "https://jobcelis.com",
     "source_code_uri" => "https://github.com/jobcelis-team/jobcelis-ruby",
