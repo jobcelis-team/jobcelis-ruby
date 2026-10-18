@@ -1,0 +1,13 @@
+# Keeps the build and publishing tools current, so a release never fails on an
+# outdated plugin or action. Monthly, one grouped pull request.
+# The gem itself has no Gemfile: its only dependency is a version range in the gemspec.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
