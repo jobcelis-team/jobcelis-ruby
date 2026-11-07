@@ -1,8 +1,11 @@
-# Publishes automatically when the version below changes on main:
-#   1. reads the version from jobcelis.gemspec
-#   2. if RubyGems does not have it yet, builds and pushes the gem
-#   3. tags the commit (vX.Y.Z)
-# Bump the version in jobcelis.gemspec to release; any other change publishes nothing.
+# Publishes automatically on every push to main that changes the package:
+#   1. next-version (jobcelis-team/.github) picks the version: the last release
+#      plus a patch, or the version in jobcelis.gemspec and lib/jobcelis.rb when it was raised by hand.
+#      Docs, tests, CI and repo config release nothing.
+#   2. writes it into jobcelis.gemspec and lib/jobcelis.rb and commits it locally
+#   3. builds the gem and publishes it to RubyGems
+#   4. pushes the version commit and tags vX.Y.Z
+# To release a minor or major version, raise it in jobcelis.gemspec and lib/jobcelis.rb.
 name: Release
 
 on:
@@ -26,15 +29,36 @@ jobs:
           fetch-depth: 0
 
       - name: Read version
-        id: v
+        id: current
         run: |
           VERSION=$(ruby -e 'print Gem::Specification.load("jobcelis.gemspec").version')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "Version: $VERSION"
+
+      - name: Next version
+        id: v
+        uses: jobcelis-team/.github/actions/next-version@main
+        with:
+          current: ${{ steps.current.outputs.version }}
+          tag-prefix: "v"
+
+      - name: Write the version
+        if: steps.v.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          sed -i -E 's/(s\.version *= *)"[^"]+"/\1"'"$VERSION"'"/' jobcelis.gemspec
+          sed -i -E 's/VERSION = "[^"]+"/VERSION = "'"$VERSION"'"/' lib/jobcelis.rb
+
+      - name: Commit the version
+        if: steps.v.outputs.release == 'true'
+        uses: jobcelis-team/.github/actions/commit-version@main
+        with:
+          version: ${{ steps.v.outputs.version }}
 
       - name: Already released?
         id: check
+        if: steps.v.outputs.release == 'true'
         env:
           RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: |
@@ -49,6 +73,7 @@ jobs:
           if [ "$CODE" = "200" ]; then
             echo "release=false" >> "$GITHUB_OUTPUT"
             echo "${{ steps.v.outputs.version }} is already published: nothing to do"
+            echo "published=true" >> "$GITHUB_OUTPUT"
           else
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
@@ -68,15 +93,8 @@ jobs:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: gem push jobcelis-${{ steps.v.outputs.version }}.gem
 
-      - name: Tag the release
-        if: steps.check.outputs.release == 'true'
-        run: |
-          TAG="${{ steps.v.outputs.tag }}"
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
-            echo "Tag $TAG already exists"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG" -m "$TAG"
-            git push origin "$TAG"
-          fi
+      - name: Push the version and tag the release
+        if: steps.v.outputs.release == 'true' && (steps.check.outputs.release == 'true' || steps.check.outputs.published == 'true')
+        uses: jobcelis-team/.github/actions/push-release@main
+        with:
+          tag: ${{ steps.v.outputs.tag }}

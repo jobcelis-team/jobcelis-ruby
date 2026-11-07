@@ -380,4 +380,4 @@ BSL-1.1 (Business Source License)
 
 ## Releasing
 
-Bump the version in `jobcelis.gemspec` and `lib/jobcelis.rb` and merge to `main`. The [Release workflow](.github/workflows/release.yml) publishes it to RubyGems and tags the commit. Changes that do not bump the version publish nothing.
+Merge to `main`: the [Release workflow](.github/workflows/release.yml) publishes every change to the package as the next patch version (1.3.1 → 1.3.2) to RubyGems, writes the version into `jobcelis.gemspec` and `lib/jobcelis.rb` and tags the commit. Changes to docs, tests or CI publish nothing. For a minor or major version, raise it in `jobcelis.gemspec` and `lib/jobcelis.rb` in the same pull request. Every pull request runs [CI](.github/workflows/ci.yml).
