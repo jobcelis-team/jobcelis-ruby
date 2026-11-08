@@ -3,6 +3,9 @@
 require "net/http"
 require "json"
 require "uri"
+require "time"
+require "openssl"
+require "securerandom"
 
 module Jobcelis
   # Client for the Jobcelis Event Infrastructure Platform API.
@@ -12,13 +15,32 @@ module Jobcelis
   #   client = Jobcelis::Client.new(api_key: "your_api_key")
   #
   class Client
-    # @param api_key  [String]  Your project API key.
-    # @param base_url [String]  Base URL of the Jobcelis API (default: https://jobcelis.com).
-    # @param timeout  [Integer] Request timeout in seconds (default: 30).
-    def initialize(api_key:, base_url: "https://jobcelis.com", timeout: 30)
+    # Responses that mean the request was not processed and can be sent again.
+    RETRYABLE_STATUSES = [429, 502, 503, 504].freeze
+
+    # Connection, DNS, TLS and timeout failures.
+    NETWORK_ERRORS = [
+      SocketError, IOError, EOFError, Timeout::Error, OpenSSL::SSL::SSLError,
+      Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::ECONNABORTED, Errno::EHOSTUNREACH,
+      Errno::ENETUNREACH, Errno::ETIMEDOUT, Errno::EPIPE
+    ].freeze
+
+    MAX_BACKOFF = 30.0
+    MAX_RETRY_AFTER = 60.0
+
+    # @param api_key          [String]  Your project API key.
+    # @param base_url         [String]  Base URL of the Jobcelis API (default: https://jobcelis.com).
+    # @param timeout          [Integer] Request timeout in seconds (default: 30).
+    # @param max_retries      [Integer] Retries for network errors and 429/502/503/504 responses
+    #   (default: 6, about 60 s in total). 0 disables retries.
+    # @param retry_base_delay [Float]   Delay in seconds before the first retry, doubled on each
+    #   following one up to 30 s (default: 1.0).
+    def initialize(api_key:, base_url: "https://jobcelis.com", timeout: 30, max_retries: 6, retry_base_delay: 1.0)
       @api_key  = api_key
       @base_url = base_url.chomp("/")
       @timeout  = timeout
+      @max_retries = [Integer(max_retries), 0].max
+      @retry_base_delay = Float(retry_base_delay)
       @auth_token = nil
     end
 
@@ -58,13 +80,19 @@ module Jobcelis
     # ------------------------------------------------------------------
 
     # Send a single event.
+    #
+    # The request carries an X-Idempotency-Key header so it can be retried
+    # safely: pass +idempotency_key:+ to choose it, otherwise a UUID is generated.
     def send_event(topic, payload, **kwargs)
-      post("/api/v1/events", { topic: topic, payload: payload, **kwargs })
+      key = kwargs[:idempotency_key] || kwargs["idempotency_key"] || new_idempotency_key
+      request("POST", "/api/v1/events", body: { topic: topic, payload: payload, **kwargs }, idempotency_key: key.to_s)
     end
 
     # Send up to 1000 events in a batch.
+    #
+    # Events without an +idempotency_key+ get a generated one so the batch can be retried safely.
     def send_events(events)
-      post("/api/v1/events/batch", { events: events })
+      post("/api/v1/events/batch", { events: with_idempotency_keys(events) })
     end
 
     # Get event details.
@@ -652,53 +680,95 @@ module Jobcelis
     end
 
     def public_post(path, body)
-      uri = build_uri(path)
-      http = build_http(uri)
-
-      req = Net::HTTP::Post.new(uri)
-      req["Content-Type"] = "application/json"
-      req.body = JSON.generate(body)
-
-      resp = http.request(req)
+      resp = send_with_retries("POST", path, body: body, auth: false)
       handle_response(resp)
     end
 
-    def request(method, path, params: nil, body: nil)
-      uri = build_uri(path, params)
-      http = build_http(uri)
-
-      req = build_request(method, uri)
-      req["Content-Type"] = "application/json"
-      req["X-Api-Key"] = @api_key
-      req["Authorization"] = "Bearer #{@auth_token}" if @auth_token
-      req.body = JSON.generate(body) if body
-
-      resp = http.request(req)
+    def request(method, path, params: nil, body: nil, idempotency_key: nil)
+      resp = send_with_retries(method, path, params: params, body: body, idempotency_key: idempotency_key)
       handle_response(resp)
     end
 
     def request_raw(method, path, params: nil)
-      uri = build_uri(path, params)
-      http = build_http(uri)
+      resp = send_with_retries(method, path, params: params)
+      raise_for_status(resp)
+      resp.body
+    end
 
+    # Sends the request, retrying network errors and 429/502/503/504 responses
+    # with exponential backoff. POST requests are only retried after a network
+    # error when they carry an idempotency key, so they can never be applied twice.
+    def send_with_retries(method, path, params: nil, body: nil, auth: true, idempotency_key: nil)
+      uri = build_uri(path, params)
+      payload = JSON.generate(body) if body
+      idempotent = method.upcase != "POST" || !idempotency_key.nil?
+      attempt = 0
+
+      loop do
+        begin
+          resp = perform_request(method, uri, payload, auth, idempotency_key)
+        rescue *NETWORK_ERRORS
+          raise if !idempotent || attempt >= @max_retries
+
+          attempt += 1
+          sleep(backoff_delay(attempt))
+          next
+        end
+
+        return resp unless RETRYABLE_STATUSES.include?(resp.code.to_i) && attempt < @max_retries
+
+        attempt += 1
+        sleep(retry_after(resp) || backoff_delay(attempt))
+      end
+    end
+
+    def perform_request(method, uri, payload, auth, idempotency_key)
+      http = build_http(uri)
       req = build_request(method, uri)
       req["Content-Type"] = "application/json"
-      req["X-Api-Key"] = @api_key
-      req["Authorization"] = "Bearer #{@auth_token}" if @auth_token
-
-      resp = http.request(req)
-
-      unless resp.is_a?(Net::HTTPSuccess)
-        detail = begin
-                   parsed = JSON.parse(resp.body)
-                   parsed.is_a?(Hash) ? (parsed["error"] || parsed) : parsed
-                 rescue JSON::ParserError
-                   resp.body
-                 end
-        raise Jobcelis::Error.new(resp.code.to_i, detail)
+      if auth
+        req["X-Api-Key"] = @api_key
+        req["Authorization"] = "Bearer #{@auth_token}" if @auth_token
       end
+      req["X-Idempotency-Key"] = idempotency_key if idempotency_key
+      req.body = payload if payload
+      http.request(req)
+    end
 
-      resp.body
+    # Delay before retry number +attempt+ (1-based): base * 2^(attempt-1), capped, with +/-20% jitter.
+    def backoff_delay(attempt)
+      delay = [@retry_base_delay * (2**(attempt - 1)), MAX_BACKOFF].min
+      delay * (0.8 + (rand * 0.4))
+    end
+
+    # Seconds to wait from a Retry-After header (seconds or HTTP date), capped at 60 s.
+    def retry_after(resp)
+      value = resp["Retry-After"]
+      return nil if value.nil? || value.strip.empty?
+
+      seconds = if value.strip.match?(/\A\d+(\.\d+)?\z/)
+                  value.to_f
+                else
+                  Time.httpdate(value.strip) - Time.now
+                end
+      seconds.clamp(0, MAX_RETRY_AFTER)
+    rescue ArgumentError
+      nil
+    end
+
+    def new_idempotency_key
+      SecureRandom.uuid
+    end
+
+    # Gives every batch item without an idempotency_key its own key, without
+    # changing the caller's hashes, so a retried batch never duplicates events.
+    def with_idempotency_keys(events)
+      events.map do |event|
+        next event unless event.is_a?(Hash)
+        next event if event.key?(:idempotency_key) || event.key?("idempotency_key")
+
+        event.merge(idempotency_key: new_idempotency_key)
+      end
     end
 
     def build_uri(path, params = nil)
@@ -715,6 +785,8 @@ module Jobcelis
       http.use_ssl = (uri.scheme == "https")
       http.open_timeout = @timeout
       http.read_timeout = @timeout
+      # Retries are handled by send_with_retries
+      http.max_retries = 0
       http
     end
 
@@ -731,19 +803,23 @@ module Jobcelis
     end
 
     def handle_response(resp)
-      unless resp.is_a?(Net::HTTPSuccess)
-        detail = begin
-                   parsed = JSON.parse(resp.body)
-                   parsed.is_a?(Hash) ? (parsed["error"] || parsed) : parsed
-                 rescue JSON::ParserError
-                   resp.body
-                 end
-        raise Jobcelis::Error.new(resp.code.to_i, detail)
-      end
+      raise_for_status(resp)
 
       return nil if resp.code == "204"
 
       JSON.parse(resp.body)
+    end
+
+    def raise_for_status(resp)
+      return if resp.is_a?(Net::HTTPSuccess)
+
+      detail = begin
+                 parsed = JSON.parse(resp.body)
+                 parsed.is_a?(Hash) ? (parsed["error"] || parsed) : parsed
+               rescue JSON::ParserError
+                 resp.body
+               end
+      raise Jobcelis::Error.new(resp.code.to_i, detail)
     end
   end
 end

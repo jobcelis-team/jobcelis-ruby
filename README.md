@@ -349,6 +349,22 @@ rescue Jobcelis::Error => e
 end
 ```
 
+## Retries
+
+The client retries a request automatically when the connection fails (refused or reset connection, DNS or TLS failure, timeout) or the API answers 429, 502, 503 or 504, for example while Jobcelis is being deployed. It waits 1 s, 2 s, 4 s, 8 s, 16 s and 30 s between attempts (with ±20 % jitter), or what the `Retry-After` header asks for, up to 60 s. By default it makes up to 6 retries, about 60 s in total. Other errors, such as 400 or 500, are raised immediately as `Jobcelis::Error`; after the last retry you get the same error you would get without retries.
+
+GET, PUT, PATCH and DELETE are retried in all of these cases. POST is retried on 429/502/503/504, and after a connection failure only when it carries an idempotency key, so a request can never be applied twice:
+
+- `send_event` sends an `X-Idempotency-Key` header, the same on every retry. Pass `idempotency_key:` to use your own key; otherwise a UUID is generated.
+- `send_events` adds an `idempotency_key` to every event that does not have one.
+
+Change or disable retries when you create the client:
+
+```ruby
+client = Jobcelis::Client.new(api_key: "your_api_key", max_retries: 3)
+client = Jobcelis::Client.new(api_key: "your_api_key", max_retries: 0) # no retries
+```
+
 ## Webhook Signature Verification
 
 ```ruby
@@ -380,4 +396,4 @@ BSL-1.1 (Business Source License)
 
 ## Releasing
 
-Merge to `main`: the [Release workflow](.github/workflows/release.yml) publishes every change to the package as the next patch version (1.3.1 → 1.3.2) to RubyGems, writes the version into `jobcelis.gemspec` and `lib/jobcelis.rb` and tags the commit. Changes to docs, tests or CI publish nothing. For a minor or major version, raise it in `jobcelis.gemspec` and `lib/jobcelis.rb` in the same pull request. Every pull request runs [CI](.github/workflows/ci.yml).
+Merge to `main`: the [Release workflow](.github/workflows/release.yml) publishes every change to the package as the next patch version (1.3.1 → 1.3.2) to RubyGems, writes the version into `jobcelis.gemspec` and `lib/jobcelis.rb` and tags the commit. Changes to docs, tests or CI publish nothing. For a minor or major version, raise it in `jobcelis.gemspec` and `lib/jobcelis.rb` in the same pull request. Every pull request runs [CI](.github/workflows/ci.yml), which runs the tests (`ruby -Ilib -Itest -e 'Dir["test/**/*_test.rb"].each { |f| require File.expand_path(f) }'`).

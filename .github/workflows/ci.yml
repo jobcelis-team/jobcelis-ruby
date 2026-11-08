@@ -23,6 +23,9 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
 
+      - name: Run the tests
+        run: ruby -Ilib -Itest -e 'Dir["test/**/*_test.rb"].each { |f| require File.expand_path(f) }'
+
       - name: Build the gem
         run: gem build jobcelis.gemspec
 
