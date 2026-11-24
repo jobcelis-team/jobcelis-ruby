@@ -186,7 +186,7 @@ client.update_pipeline("pipe_abc123", name: "order-processing-v2")
 client.delete_pipeline("pipe_abc123")
 
 # Test a pipeline with a sample payload
-result = client.test_pipeline("pipe_abc123", { topic: "order.created", payload: { id: "1" } })
+result = client.test_pipeline("pipe_abc123", { topic: "order.created", id: "1" })
 ```
 
 ## Event Schemas
@@ -319,7 +319,7 @@ client.accept_consent("marketing")
 my_data = client.export_my_data
 
 # Processing restrictions
-client.restrict_processing
+client.restrict_processing(password: "your-account-password")
 client.lift_restriction
 
 # Right to object
@@ -331,7 +331,7 @@ client.restore_consent
 
 ```ruby
 health = client.health
-status = client.status
+status = client.status # same JSON as health
 ```
 
 ## Error Handling

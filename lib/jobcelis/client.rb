@@ -97,7 +97,7 @@ module Jobcelis
 
     # Get event details.
     def get_event(event_id)
-      get("/api/v1/events/#{event_id}")
+      get("/api/v1/events/#{seg(event_id)}")
     end
 
     # List events with cursor pagination.
@@ -107,7 +107,7 @@ module Jobcelis
 
     # Deactivate an event.
     def delete_event(event_id)
-      do_delete("/api/v1/events/#{event_id}")
+      do_delete("/api/v1/events/#{seg(event_id)}")
     end
 
     # ------------------------------------------------------------------
@@ -132,7 +132,7 @@ module Jobcelis
 
     # Get webhook details.
     def get_webhook(webhook_id)
-      get("/api/v1/webhooks/#{webhook_id}")
+      get("/api/v1/webhooks/#{seg(webhook_id)}")
     end
 
     # List webhooks.
@@ -144,17 +144,17 @@ module Jobcelis
     def update_webhook(webhook_id, rate_limit: nil, **kwargs)
       body = { **kwargs }
       body[:rate_limit] = rate_limit if rate_limit
-      patch("/api/v1/webhooks/#{webhook_id}", body)
+      patch("/api/v1/webhooks/#{seg(webhook_id)}", body)
     end
 
     # Deactivate a webhook.
     def delete_webhook(webhook_id)
-      do_delete("/api/v1/webhooks/#{webhook_id}")
+      do_delete("/api/v1/webhooks/#{seg(webhook_id)}")
     end
 
     # Get health status for a webhook.
     def webhook_health(webhook_id)
-      get("/api/v1/webhooks/#{webhook_id}/health")
+      get("/api/v1/webhooks/#{seg(webhook_id)}/health")
     end
 
     # List available webhook templates.
@@ -164,7 +164,7 @@ module Jobcelis
 
     # Send a test delivery to a webhook.
     def test_webhook(webhook_id)
-      post("/api/v1/webhooks/#{webhook_id}/test", {})
+      post("/api/v1/webhooks/#{seg(webhook_id)}/test", {})
     end
 
     # ------------------------------------------------------------------
@@ -178,7 +178,7 @@ module Jobcelis
 
     # Retry a failed delivery.
     def retry_delivery(delivery_id)
-      post("/api/v1/deliveries/#{delivery_id}/retry", {})
+      post("/api/v1/deliveries/#{seg(delivery_id)}/retry", {})
     end
 
     # ------------------------------------------------------------------
@@ -192,17 +192,17 @@ module Jobcelis
 
     # Get dead letter details.
     def get_dead_letter(dead_letter_id)
-      get("/api/v1/dead-letters/#{dead_letter_id}")
+      get("/api/v1/dead-letters/#{seg(dead_letter_id)}")
     end
 
     # Retry a dead letter.
     def retry_dead_letter(dead_letter_id)
-      post("/api/v1/dead-letters/#{dead_letter_id}/retry", {})
+      post("/api/v1/dead-letters/#{seg(dead_letter_id)}/retry", {})
     end
 
     # Mark a dead letter as resolved.
     def resolve_dead_letter(dead_letter_id)
-      patch("/api/v1/dead-letters/#{dead_letter_id}/resolve", {})
+      patch("/api/v1/dead-letters/#{seg(dead_letter_id)}/resolve", {})
     end
 
     # ------------------------------------------------------------------
@@ -223,12 +223,12 @@ module Jobcelis
 
     # Get replay details.
     def get_replay(replay_id)
-      get("/api/v1/replays/#{replay_id}")
+      get("/api/v1/replays/#{seg(replay_id)}")
     end
 
     # Cancel a replay.
     def cancel_replay(replay_id)
-      do_delete("/api/v1/replays/#{replay_id}")
+      do_delete("/api/v1/replays/#{seg(replay_id)}")
     end
 
     # ------------------------------------------------------------------
@@ -247,22 +247,22 @@ module Jobcelis
 
     # Get job details.
     def get_job(job_id)
-      get("/api/v1/jobs/#{job_id}")
+      get("/api/v1/jobs/#{seg(job_id)}")
     end
 
     # Update a scheduled job.
     def update_job(job_id, **kwargs)
-      patch("/api/v1/jobs/#{job_id}", kwargs)
+      patch("/api/v1/jobs/#{seg(job_id)}", kwargs)
     end
 
     # Delete a scheduled job.
     def delete_job(job_id)
-      do_delete("/api/v1/jobs/#{job_id}")
+      do_delete("/api/v1/jobs/#{seg(job_id)}")
     end
 
     # List runs for a scheduled job.
     def list_job_runs(job_id, limit: 50)
-      get("/api/v1/jobs/#{job_id}/runs", { limit: limit })
+      get("/api/v1/jobs/#{seg(job_id)}/runs", { limit: limit })
     end
 
     # Preview next occurrences for a cron expression.
@@ -286,22 +286,22 @@ module Jobcelis
 
     # Get pipeline details.
     def get_pipeline(pipeline_id)
-      get("/api/v1/pipelines/#{pipeline_id}")
+      get("/api/v1/pipelines/#{seg(pipeline_id)}")
     end
 
     # Update a pipeline.
     def update_pipeline(pipeline_id, **kwargs)
-      patch("/api/v1/pipelines/#{pipeline_id}", kwargs)
+      patch("/api/v1/pipelines/#{seg(pipeline_id)}", kwargs)
     end
 
     # Delete a pipeline.
     def delete_pipeline(pipeline_id)
-      do_delete("/api/v1/pipelines/#{pipeline_id}")
+      do_delete("/api/v1/pipelines/#{seg(pipeline_id)}")
     end
 
     # Test a pipeline with a sample payload.
     def test_pipeline(pipeline_id, payload)
-      post("/api/v1/pipelines/#{pipeline_id}/test", payload)
+      post("/api/v1/pipelines/#{seg(pipeline_id)}/test", { payload: payload })
     end
 
     # ------------------------------------------------------------------
@@ -320,17 +320,17 @@ module Jobcelis
 
     # Get event schema details.
     def get_event_schema(schema_id)
-      get("/api/v1/event-schemas/#{schema_id}")
+      get("/api/v1/event-schemas/#{seg(schema_id)}")
     end
 
     # Update an event schema.
     def update_event_schema(schema_id, **kwargs)
-      patch("/api/v1/event-schemas/#{schema_id}", kwargs)
+      patch("/api/v1/event-schemas/#{seg(schema_id)}", kwargs)
     end
 
     # Delete an event schema.
     def delete_event_schema(schema_id)
-      do_delete("/api/v1/event-schemas/#{schema_id}")
+      do_delete("/api/v1/event-schemas/#{seg(schema_id)}")
     end
 
     # Validate a payload against the schema for a topic.
@@ -356,12 +356,12 @@ module Jobcelis
 
     # Delete a sandbox endpoint.
     def delete_sandbox_endpoint(endpoint_id)
-      do_delete("/api/v1/sandbox-endpoints/#{endpoint_id}")
+      do_delete("/api/v1/sandbox-endpoints/#{seg(endpoint_id)}")
     end
 
     # List requests received by a sandbox endpoint.
     def list_sandbox_requests(endpoint_id, limit: 50)
-      get("/api/v1/sandbox-endpoints/#{endpoint_id}/requests", { limit: limit })
+      get("/api/v1/sandbox-endpoints/#{seg(endpoint_id)}/requests", { limit: limit })
     end
 
     # ------------------------------------------------------------------
@@ -439,22 +439,22 @@ module Jobcelis
 
     # Get project by ID.
     def get_project_by_id(project_id)
-      get("/api/v1/projects/#{project_id}")
+      get("/api/v1/projects/#{seg(project_id)}")
     end
 
     # Update a project by ID.
     def update_project_by_id(project_id, **kwargs)
-      patch("/api/v1/projects/#{project_id}", kwargs)
+      patch("/api/v1/projects/#{seg(project_id)}", kwargs)
     end
 
     # Delete a project.
     def delete_project(project_id)
-      do_delete("/api/v1/projects/#{project_id}")
+      do_delete("/api/v1/projects/#{seg(project_id)}")
     end
 
     # Set a project as the default.
     def set_default_project(project_id)
-      patch("/api/v1/projects/#{project_id}/default", {})
+      patch("/api/v1/projects/#{seg(project_id)}/default", {})
     end
 
     # ------------------------------------------------------------------
@@ -463,22 +463,22 @@ module Jobcelis
 
     # List members of a project.
     def list_members(project_id)
-      get("/api/v1/projects/#{project_id}/members")
+      get("/api/v1/projects/#{seg(project_id)}/members")
     end
 
     # Add a member to a project.
-    def add_member(project_id, email:, role: "member")
-      post("/api/v1/projects/#{project_id}/members", { email: email, role: role })
+    def add_member(project_id, email:, role: "viewer")
+      post("/api/v1/projects/#{seg(project_id)}/members", { email: email, role: role })
     end
 
     # Update a member's role.
     def update_member(project_id, member_id, role:)
-      patch("/api/v1/projects/#{project_id}/members/#{member_id}", { role: role })
+      patch("/api/v1/projects/#{seg(project_id)}/members/#{seg(member_id)}", { role: role })
     end
 
     # Remove a member from a project.
     def remove_member(project_id, member_id)
-      do_delete("/api/v1/projects/#{project_id}/members/#{member_id}")
+      do_delete("/api/v1/projects/#{seg(project_id)}/members/#{seg(member_id)}")
     end
 
     # ------------------------------------------------------------------
@@ -492,12 +492,12 @@ module Jobcelis
 
     # Accept an invitation.
     def accept_invitation(invitation_id)
-      post("/api/v1/invitations/#{invitation_id}/accept", {})
+      post("/api/v1/invitations/#{seg(invitation_id)}/accept", {})
     end
 
     # Reject an invitation.
     def reject_invitation(invitation_id)
-      post("/api/v1/invitations/#{invitation_id}/reject", {})
+      post("/api/v1/invitations/#{seg(invitation_id)}/reject", {})
     end
 
     # ------------------------------------------------------------------
@@ -544,7 +544,7 @@ module Jobcelis
 
     # Accept consent for a specific purpose.
     def accept_consent(purpose)
-      post("/api/v1/me/consents/#{purpose}/accept", {})
+      post("/api/v1/me/consents/#{seg(purpose)}/accept", {})
     end
 
     # Export all personal data (GDPR data portability).
@@ -552,9 +552,10 @@ module Jobcelis
       get("/api/v1/me/data")
     end
 
-    # Request restriction of data processing.
-    def restrict_processing
-      post("/api/v1/me/restrict", {})
+    # Request restriction of data processing. The API asks for the account
+    # password to confirm it.
+    def restrict_processing(password:)
+      post("/api/v1/me/restrict", { password: password })
     end
 
     # Lift restriction on data processing.
@@ -588,7 +589,7 @@ module Jobcelis
 
     # Revoke an embed token.
     def revoke_embed_token(id)
-      do_delete("/api/v1/embed/tokens/#{id}")
+      do_delete("/api/v1/embed/tokens/#{seg(id)}")
     end
 
     # ------------------------------------------------------------------
@@ -626,7 +627,7 @@ module Jobcelis
 
     # Update retention policy.
     def update_retention_policy(policy)
-      patch("/api/v1/retention", policy)
+      patch("/api/v1/retention", { retention_policy: policy })
     end
 
     # Preview a purge operation.
@@ -648,9 +649,10 @@ module Jobcelis
       get("/health")
     end
 
-    # Get platform status page.
+    # Get platform status. Same as #health: /status is an HTML page, so this
+    # reads the JSON /health endpoint.
     def status
-      get("/status")
+      get("/health")
     end
 
     private
@@ -693,6 +695,11 @@ module Jobcelis
       resp = send_with_retries(method, path, params: params)
       raise_for_status(resp)
       resp.body
+    end
+
+    # Percent-encodes a value used as one path segment.
+    def seg(value)
+      URI.encode_www_form_component(value.to_s).gsub("+", "%20")
     end
 
     # Sends the request, retrying network errors and 429/502/503/504 responses
